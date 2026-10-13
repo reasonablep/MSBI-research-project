@@ -1,0 +1,6 @@
+/reads/
+.DS_Store
+.git
+/venv/
+.venv
+
