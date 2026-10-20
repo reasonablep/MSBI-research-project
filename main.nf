@@ -91,12 +91,14 @@ process FASTQC {
 workflow {
 	
 	runs = Channel
-	.fromPath()
+	.fromPath(params.runs, checkIfExists: true)
+	.splitText()
+	.map {it.trim()}
+	.filter{ it && !it.startsWith('#') }
 
 	DOWNLOAD_SRA(runs)
 	SRA_TO_FASTQ(DOWNLOAD_SRA.out)
 	FASTQC(SRA_TO_FASTQ.out)
 
 }
-
 
