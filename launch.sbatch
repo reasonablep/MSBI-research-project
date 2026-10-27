@@ -6,11 +6,14 @@
 #SBATCH --time=24:00:00
 #SBATCH --output=nextflow-%j.log
 
+#Need to replace PARTITION_NAME above and below
+
 set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:?This script must be submitted from the project directory}"
 
-cd /path/to/ncrassa_project
+export NF_PARTITION="PARTITION_NAME"
 
-# Need to replace with cluster's module names
+# Need to replace below with cluster's module names
 
 module load nextflow
 module load sra-toolkit
