@@ -76,7 +76,23 @@ process FASTQC {
 	"""
 }
 
-process INDEX_REFERENCE{}
+process INDEX_REFERENCE{
+
+	input:
+	path fasta
+	output:
+	path 'refidx"
+	script:
+
+	"""
+	mkdir refidx
+	cp '${fasta}' refidx/reference.fa
+	bwa index refidx/reference.fa
+	samtools faidx refidx/reference.fa
+	"""
+}
+
+
 process ALIGN{}
 process CALL_VARIANTS{}
 process BUILD_SNPEFF{}
