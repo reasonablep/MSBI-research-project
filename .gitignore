@@ -4,3 +4,5 @@
 /venv/
 .venv
 
+
+references/**/*.gz
