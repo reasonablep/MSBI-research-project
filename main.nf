@@ -2,23 +2,20 @@ params.run = 'runs.txt'
 params.outdir = 'results'
 
 process DOWNLOAD_SRA {
-	tag "$run"
-
-	cpus 1
-	memory '4 GB'
-	time '4h'
+	tag "$sample"
+	label 'download'
 
 	input:
-	val run
+	val sample
 
 	output:
-	tuple val(run), path("${run}")
+	tuple val(sample), path("${sample}")
 
 	script:
 
 	"""
 
-	prefetch ${run} --max-size 50G --output-directory .
+	prefetch ${sample} --max-size 50G --output-directory .
 
 	"""
 
@@ -26,22 +23,18 @@ process DOWNLOAD_SRA {
 
 process SRA_TO_FASTQ {
 
-	tag "$run"
-	
-
-	cpus 1
-	memory '8GB'
-	time '3h'
+	tag "$sample"
+	label 'download'	
 
 	publishDir "${params.outdir}/fastq", mode: 'copy'
 
 	input:
-	tuple val(run), path(sra_dir)
+	tuple val(sample), path(sra_dir)
 
 	output:
-	tuple val(run),
-		path("${run}_1.fastq.gz"),
-		path("${run}_2.fastq.gz")
+	tuple val(sample),
+		path("${sample}_1.fastq.gz"),
+		path("${sample}_2.fastq.gz")
 
 	script:
 	"""
@@ -53,7 +46,7 @@ process SRA_TO_FASTQ {
 		--temp tmp \
 		--outdir .
 
-	gzip ${run}_1.fastq ${run}_2.fastq
+	gzip ${sample}_1.fastq ${sample}_2.fastq
 
 	"""
 
@@ -61,16 +54,12 @@ process SRA_TO_FASTQ {
 
 process FASTQC {
 
-	tag "$run"
-
-	cpus 1
-	memory '4 GB'
-	time '1h'
+	tag "$sample"
 
 	publishDir "${params.outdir}/fastqc", mode: 'copy'
 
 	input:
-	tuple val(run), path(read1), path(read2)
+	tuple val(sample), path(r1), path(r2)
 
 	output:
 	path("*_fastqc.html")
@@ -80,12 +69,19 @@ process FASTQC {
 
 	"""
 
-	fastqc ${read1} ${read2} \
+	fastqc ${r1} ${r2} \
 	--threads ${task.cpus} \
 	--outdir .
 
 	"""
 }
+
+process INDEX_REFERENCE{}
+process ALIGN{}
+process CALL_VARIANTS{}
+process BUILD_SNPEFF{}
+process ANNOTATE{}
+process UNIQUE_VARIANTS{}
 
 
 workflow {
