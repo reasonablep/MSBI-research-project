@@ -1,5 +1,3 @@
-params.run = 'runs.txt'
-params.outdir = 'results'
 
 process DOWNLOAD_SRA {
 	tag "$sample"
@@ -253,20 +251,154 @@ process ANNOTATE{
 
 }
 
-process UNIQUE_VARIANTS{}
+process UNIQUE_VARIANTS{
+
+	publishDir "${params.outdir}/candidates", mode: 'copy'
+
+	input:
+	tuple path(vcf), path(csi)
+
+	output:
+	path '*.tsv'
+
+	script:
+
+	"""
+	
+	unique_variants.py \\
+		--vcf '{vcf}'
+		--min-depth ${params.min_depth} \\
+		--min-qual ${params.min_qual} \\
+		--min-alt-fraction ${params.min_alt_fraction} \\
+		--max-ref-alt-fraction ${params.max_ref_alt_fraction}
+	"""
+
+}
 
 
 workflow {
+	if (params.help){
+
+		log.info 'See README.md. Local test: nextflow run main.nf -profile local,test'
+	} else {
+		if(!params.reference){
+			error 'Provide --reference references/genome.fa(uncompressed FASTA)'}
+		if ((params.reads ? 1 : 0) + (params.runs ? 1 : 0) != 1) {
+			error 'Provide exactly one --reads or --runs'
+		}
+		
+		if(
+			params.min_depth <1 ||
+			params.min_qual <0 ||
+			params.min_mapq < 0 ||
+			params.min_baseq <0 
+	){
+			error 'Depth must be positive; quality thresholds non-negative'
+	}
 	
-	runs = Channel
-	.fromPath(params.runs, checkIfExists: true)
-	.splitText()
-	.map {it.trim()}
-	.filter{ it && !it.startsWith('#') }
+		if(
+			params.min_alt_fraction <=0.5 ||
+			params.min_alt_fraction > 1 ||
+			params.max_ref_alt_fraction <0 ||
+			params.max_ref_alt_fraction >= params.min_alt_fraction
+	){
+			error 'Invalid allele fraction thresholds"'
+	}
+		fasta = Channel.value(
+		file(params.reference, checkIfExists: true)
+		)
 
-	DOWNLOAD_SRA(runs)
-	SRA_TO_FASTQ(DOWNLOAD_SRA.out)
-	FASTQC(SRA_TO_FASTQ.out)
+		if (params.reads){
 
-}
+			reads_ch = Channel
+				.fromFilePairs(
+					params.reads,
+					size: -1,
+					checkIfExists:true
+				)	
+				.map{sample, pair ->
+					if(!sample ==~ /[A-Za-z0-9][A-Za-z0-9_.-]*/){
+						error "Unsafe sample ID: ${sample}"
+					}
+					
+					if(pair.size()!=2){
+						error "Expected exactly two mates for ${sample}; found ${pair.size()}"	
+					}
+
+					tuple(sample,pair[0],pair[1])
+
+				}
+				
+			} else{
+
+				runs_ch=Channel
+					.fromPath(params.runs, checkIfExists: true)
+					.splitText()
+					.map{it.trim()}
+					.filter{it && !it.startsWith('#')}
+					.map{ run-> 
+						if(!(run==~ /[SED]RR[0-9]+/)){
+							error "Invalid accession: ${run}"
+						}
+
+						run
+					
+					}
+
+					.unique()
+					.ifEmpty{
+						error 'No accessions in --runs file'
+					}
+				DOWNLOAD_SRA(runs_ch)
+				SRA_TO_FASTQ(DOWNLOAD_SRA.out)
+
+				reads_ch = SRA_TO_FASTQ.out
+						
+			}
+
+			FASTQC(read_ch)
+			INDEX_REFERENCE(fasta)
+			ALIGN(reads_ch, INDEX_REFERENCE.out)
+			
+			cohort = ALIGN.out.bams
+				.toList()
+				.map{ rows->
+					
+					if(rows.size() <2){
+					error 'At least two samples required for strain-unique comparison
+					}
+
+					def ordered = rows.sort {a, b -> 
+						a[0] <=> b[0]
+					}
+
+					tuple(
+						ordered.collect { it[1] },
+						ordered.collect { it[2] }
+					)
+
+				}
+			CALL_VARIANTS(cohort, INDEX_REFERENCE.out)
+			
+			if (params.gff){
+				BUILD_SNPEFF(
+					fasta,
+					Channel.value(
+						file(params.gff, checkIfExits: true)
+					)
+				)
+
+				ANNOTATE(
+					CALL_VARIANTS.out.vcf
+					BUILD_SNPEFF.out
+				)
+
+				UNIQUE_VARIANTS(ANNOTATE.out.vcf)
+
+			} else {
+				UNIQUE_VARIANTS(CALL_VARIANTS.out.vcf)
+			}
+				 
+		}
+	}		
 
