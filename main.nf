@@ -404,17 +404,17 @@ workflow {
 
 				}
 			CALL_VARIANTS(cohort, INDEX_REFERENCE.out)
-			
+			CALL_FREEBAYES(cohort, INDEX_REFERENCE.out)			
 			if (params.gff){
 				BUILD_SNPEFF(
 					fasta,
 					Channel.value(
-						file(params.gff, checkIfExits: true)
+						file(params.gff, checkIfExists: true)
 					)
 				)
 
 				ANNOTATE(
-					CALL_VARIANTS.out.vcf
+					CALL_VARIANTS.out.vcf,
 					BUILD_SNPEFF.out
 				)
 
