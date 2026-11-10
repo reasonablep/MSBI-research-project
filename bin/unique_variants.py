@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import argparase
+import argparse
 import csv
 import gzip
 import json

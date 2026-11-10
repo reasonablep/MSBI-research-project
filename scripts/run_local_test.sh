@@ -4,8 +4,8 @@ set -euo pipefail
 
 # Toggle annotations on or off
 
-cd "$(dirname"$0")/.."
-annotate = 0
+cd "$(dirname "$0")/.."
+annotate=0
 if [ "${1:-}" = '--annotation' ]; then
 	command -v snpEff >/dev/null 2>&1 || { echo 'Missing snpEff' >&2; exit 1; }
 	annotate=1

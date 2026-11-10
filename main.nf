@@ -84,7 +84,7 @@ process INDEX_REFERENCE{
 
 	"""
 	mkdir refidx
-	cp '${fasta}' refidx/reference.fa
+	cp "${fasta}" refidx/reference.fa
 	bwa index refidx/reference.fa
 	samtools faidx refidx/reference.fa
 	"""
@@ -111,20 +111,15 @@ process ALIGN{
 
 	"""
 	bwa mem -t ${task.cpus} \\
-		-R '@RG\\tID:${sample}\\tSM:${sample}\\tPL:ILLUMINA' \\
-		refidx/reference.fa '${r1}' '${r2}' \\
-		| samtools sort -n -m 256M -o names.bam -
+		-R '@RG\\tID:${sample}\\tSM:${sample}\\tPL:ILLUMINA' refidx/reference.fa '${r1}' '${r2}' samtools sort -n -m 256M -o names.bam -
 	samtools fixmate -m names.bam mates.bam
-	samtools sort -m 256M -o sorted bam mates.bam
+	samtools sort -m 256M -o sorted.bam mates.bam
 
-	samtools markdup -s \\
-		-f '${sample}.markdup.txt \\
-		sorted.bam '${sample}.bam' \\
+	samtools markdup -s -f '${sample}.markdup.txt sorted.bam '${sample}.bam'
 
 	samtools index '${sample}.bam'
 
-	samtools flagstat '${sample}.bam' \\ 
-		> '${sample}.flagstat.txt	
+	samtools flagstat '${sample}.bam' > '${sample}.flagstat.txt'	
 	
 	"""
 }
@@ -175,6 +170,36 @@ process CALL_VARIANTS{
     bcftools stats cohort.vcf.gz > cohort.stats.txt
     """
 
+}
+
+process CALL_FREEBAYES{
+
+	label 'call'
+
+	publishDir "{params.outdir}/freebayes" mode: 'copy'
+	
+	input:
+	tuple path(bam_files), path(bai_files)
+	path refidx
+
+	output:
+	tuple path('freebayes.vcf.gz'),
+		path('freebayes.vcf.gz.csi')
+		emit: vcf
+
+	 
+	script:
+	def bams= bam_files.collect{ "'${it}'"  }.join(' ')
+
+	"""
+	
+	freebayes -f refidx/reference.fa -p 1 ${bams} \
+		| bcftools norm -f refidx/reference.fa -Ou \
+		| bcftools sort -Oz -o freebayes.vcf.gz
+		| bcftools index --csi freebayes.vcf.gz
+
+	"""
+ 
 }
 
 process BUILD_SNPEFF{
@@ -317,7 +342,7 @@ workflow {
 					checkIfExists:true
 				)	
 				.map{sample, pair ->
-					if(!sample ==~ /[A-Za-z0-9][A-Za-z0-9_.-]*/){
+					if(!(sample ==~ /[A-Za-z0-9][A-Za-z0-9_.-]*/)){
 						error "Unsafe sample ID: ${sample}"
 					}
 					

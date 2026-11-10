@@ -3,6 +3,15 @@
 .git
 /venv/
 .venv
-
-
+work/
+/work/
+.nextflow
+results/
+/results/
+reports/
+/reports
+*.bam
+*.bai
+*.vcf.gz
+*.vcf.gz.csi
 references/**/*.gz

@@ -5,6 +5,7 @@ channels:
   - nodefaults
 dependencies:
   - python=3.11
+  - freebayes
   - openjdk=17
   - nextflow=25.10.0
   - fastqc=0.12.1
